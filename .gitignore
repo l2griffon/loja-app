@@ -35,4 +35,12 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# Arquivo de exemplo
 app-example
+
+# Firebase Admin Secrets (evita push de chaves sensíveis)
+backend/serviceAccountKey.json
+backend/firebase-admin.json
+
+# Ignorar APKs e build web pesada
+apk/
