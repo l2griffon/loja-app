@@ -3,6 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import UploaderDeProdutos from './UploaderDeProdutos';
 import JsonImporter from './JsonImporter';
+import AdminOrdersScreen from './AdminOrdersScreen';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBrgudRlkc_O3elevloX1G6lPzw0hPL0HU",
@@ -73,7 +74,9 @@ function App() {
 
       <UploaderDeProdutos user={user} />
       <hr style={{ margin: '40px 0' }} />
-      <JsonImporter /> {/* Aqui está o componente para importar os produtos */}
+      <JsonImporter />
+      <hr style={{ margin: '40px 0' }} />
+      <AdminOrdersScreen />
     </div>
   );
 }

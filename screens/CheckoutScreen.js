@@ -1,115 +1,128 @@
 import React, { useContext, useState, useEffect } from 'react';
-import { View, Text, Alert, StyleSheet, TouchableOpacity, Linking, ActivityIndicator, ScrollView } from 'react-native';
+import {
+  View, Text, Alert, StyleSheet, TouchableOpacity, Linking, ActivityIndicator,
+  ScrollView, TextInput, KeyboardAvoidingView, Platform
+} from 'react-native';
 import { CartContext } from '../context/CartContext';
-import { getAuth } from 'firebase/auth';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import app from '../firebaseConfig';
+import uuid from 'react-native-uuid';
 
 const CheckoutScreen = ({ navigation }) => {
   const { cart, clearCart } = useContext(CartContext);
   const [userData, setUserData] = useState(null);
   const [loadingUser, setLoadingUser] = useState(true);
-  const [paymentMethod, setPaymentMethod] = useState(''); // Guardar o método de pagamento
-  const [isPaymentConfirmed, setIsPaymentConfirmed] = useState(false); // Confirmar se o pagamento foi escolhido
-  const [isPaymentMinimized, setIsPaymentMinimized] = useState(false); // Para minimizar a seção de pagamento
+  const [paymentMethod, setPaymentMethod] = useState('');
+  const [isPaymentConfirmed, setIsPaymentConfirmed] = useState(false);
+  const [discountCode, setDiscountCode] = useState('');
+  const [discountApplied, setDiscountApplied] = useState(false);
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [paymentOptionsVisible, setPaymentOptionsVisible] = useState(false);
 
   const auth = getAuth(app);
   const firestore = getFirestore(app);
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      const user = auth.currentUser;
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         const docRef = doc(firestore, 'users', user.uid);
         const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setUserData(docSnap.data());
-        }
+        if (docSnap.exists()) setUserData(docSnap.data());
       }
       setLoadingUser(false);
-    };
+    });
 
-    fetchUserData();
+    return () => unsubscribe();
   }, []);
 
-  // Verificar se o carrinho está vazio e, caso esteja, garantir que o método de pagamento seja desmarcado
-  useEffect(() => {
-    if (cart.length === 0) {
-      setPaymentMethod(''); // Reseta o método de pagamento caso o carrinho esteja vazio
-      setIsPaymentConfirmed(false); // Desabilita a confirmação de pagamento
+  const applyDiscount = () => {
+    const validDiscounts = { 'ESSENCIAL10': 0.1, 'FRETEGRATIS': 0.15 };
+    const discount = validDiscounts[discountCode.toUpperCase()];
+    if (discount) {
+      setDiscountAmount(discount);
+      setDiscountApplied(true);
+      Alert.alert('Desconto aplicado!', `Desconto de ${discount * 100}% foi aplicado.`);
+    } else {
+      setDiscountApplied(false);
+      Alert.alert('Código inválido!', 'O código promocional informado não é válido.');
     }
-  }, [cart]);
+  };
 
   const handleCheckout = async () => {
-    if (!userData) {
-      Alert.alert('Erro', 'Informações do usuário não encontradas.');
-      return;
-    }
+    try {
+      const user = auth.currentUser;
+      if (!user || !userData) {
+        Alert.alert('Erro', 'Usuário não autenticado ou dados ausentes.');
+        return;
+      }
 
-    if (!isPaymentConfirmed) {
-      Alert.alert('Erro', 'Por favor, confirme a forma de pagamento.');
-      return;
-    }
+      if (!isPaymentConfirmed) {
+        Alert.alert('Erro', 'Por favor, confirme a forma de pagamento.');
+        return;
+      }
 
-    const total = cart.reduce((sum, item) => sum + (parseFloat(item.valor_unitario) || 0), 0); // Garantir que item.valor_unitario seja convertido para número
-    const produtosTexto = cart.map((item, index) => {
-      const valorItem = parseFloat(item.valor_unitario) || 0; // Garantir que o valor seja um número válido
-      return `\n${index + 1}. ${item.descricao} - R$ ${valorItem.toFixed(2)}`;
-    }).join('');
+      const total = cart.reduce((sum, item) => sum + (item.valor_unitario * item.quantidade), 0);
+      const totalWithDiscount = (total - total * discountAmount).toFixed(2);
+      const orderId = 'PED-' + uuid.v4().toString().split('-')[0].toUpperCase();
 
-    const mensagem = 
-`Novo pedido:
-👤 Nome: ${userData.name || 'Não informado'}
-📞 Telefone: ${userData.phone || 'Não informado'}
-🏠 Endereço: ${userData.address || 'Não informado'}
-🆔 CPF: ${userData.cpf || 'Não informado'}
+      const produtosTexto = cart.map((item, index) =>
+        `\n${index + 1}. ${item.quantidade}x ${item.descricao} - R$ ${(item.valor_unitario * item.quantidade).toFixed(2)}`
+      ).join('');
 
-🛒 Produtos:${produtosTexto}
+      const mensagem = `
+🛍️ *Novo Pedido* - ID: ${orderId}
 
-💰 Total: R$ ${total.toFixed(2)}
+👤 *Nome:* ${userData.name || 'Não informado'}
+📞 *Telefone:* ${userData.phone || 'Não informado'}
+🏠 *Endereço:* ${userData.address || 'Não informado'}
+🆔 *CPF:* ${userData.cpf || 'Não informado'}
 
-💳 Forma de pagamento: ${paymentMethod}
+📦 *Produtos:*${produtosTexto}
+
+💰 *Total sem desconto:* R$ ${total.toFixed(2)}
+🎁 *Cupom:* ${discountApplied ? discountCode.toUpperCase() : 'Nenhum'}
+💸 *Desconto aplicado:* ${discountApplied ? `${(discountAmount * 100).toFixed(0)}%` : '0%'}
+✅ *Total com desconto:* R$ ${totalWithDiscount}
+
+💳 *Forma de pagamento:* ${paymentMethod || 'Não informado'}
 `;
 
-    const numeroLoja = '5582988478510';
-    const url = `https://wa.me/${numeroLoja}?text=${encodeURIComponent(mensagem)}`;
+      const orderData = {
+        orderId,
+        userId: user.uid,
+        customerName: userData.name,
+        phone: userData.phone,
+        address: userData.address,
+        cpf: userData.cpf,
+        paymentMethod,
+        cart: cart.map(item => ({
+          id: item.codigo,
+          descricao: item.descricao,
+          valor_unitario: item.valor_unitario,
+          quantidade: item.quantidade,
+          categoria: item.categoria || 'Perfumes',
+        })),
+        total: parseFloat(totalWithDiscount),
+        status: 'em andamento',
+        createdAt: serverTimestamp()
+      };
 
-    try {
+      await setDoc(doc(firestore, 'orders', orderId), orderData);
+      const numeroLoja = '5582988478510';
+      const url = `https://wa.me/${numeroLoja}?text=${encodeURIComponent(mensagem)}`;
       await Linking.openURL(url);
+
       clearCart();
       navigation.navigate('Home');
     } catch (error) {
-      Alert.alert('Erro', 'Não foi possível abrir o WhatsApp.');
+      Alert.alert('Erro', 'Algo deu errado ao processar o pedido.');
+      console.error('Erro no checkout:', error);
     }
   };
 
-  const renderPaymentOption = (method) => {
-    return (
-      <TouchableOpacity
-        key={method}
-        style={[styles.paymentButton, paymentMethod === method && styles.paymentButtonSelected]}
-        onPress={() => {
-          setPaymentMethod(method);
-          setIsPaymentConfirmed(true); // Confirma a escolha do método de pagamento
-        }}
-      >
-        <Text style={styles.paymentButtonText}>{method}</Text>
-      </TouchableOpacity>
-    );
-  };
-
-  const handleChangePaymentMethod = () => {
-    setIsPaymentConfirmed(false); // Permite que o usuário selecione um novo método de pagamento
-    setIsPaymentMinimized(false); // Exibe novamente as opções de pagamento
-  };
-
-  const handleMinimizePayment = () => {
-    setIsPaymentMinimized(true); // Minimiza a seção de pagamento
-  };
-
-  const handleReopenPayment = () => {
-    setIsPaymentMinimized(false); // Restaura a visibilidade das opções de pagamento
-  };
+  const total = cart.reduce((sum, item) => sum + (item.valor_unitario * item.quantidade), 0);
+  const totalWithDiscount = (total * (1 - discountAmount)).toFixed(2);
 
   if (loadingUser) {
     return (
@@ -120,246 +133,106 @@ const CheckoutScreen = ({ navigation }) => {
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Finalizar Compra</Text>
-
-      {userData ? (
-        <View style={styles.userInfo}>
-          <Text style={styles.infoLabel}>👤 Nome:</Text>
-          <Text style={styles.infoText}>{userData.name}</Text>
-
-          <Text style={styles.infoLabel}>📞 Telefone:</Text>
-          <Text style={styles.infoText}>{userData.phone}</Text>
-
-          <Text style={styles.infoLabel}>🏠 Endereço:</Text>
-          <Text style={styles.infoText}>{userData.address}</Text>
-
-          <Text style={styles.infoLabel}>🆔 CPF:</Text>
-          <Text style={styles.infoText}>{userData.cpf}</Text>
-        </View>
-      ) : (
-        <Text style={styles.warning}>Informações do usuário não encontradas.</Text>
-      )}
-
-      <ScrollView style={styles.productList}>
-        <Text style={styles.productHeader}>Resumo dos Produtos:</Text>
-        {cart.length > 0 ? (
-          cart.map((item, index) => {
-            const valorItem = parseFloat(item.valor_unitario) || 0; // Garantir que o valor seja um número válido
-            return (
-              <View key={index} style={styles.productItem}>
-                <Text style={styles.productText}>
-                  {item.descricao} - R$ {valorItem.toFixed(2)} 
-                </Text>
-              </View>
-            );
-          })
-        ) : (
-          <Text style={styles.warning}>O carrinho está vazio.</Text>
-        )}
-      </ScrollView>
-
-      <Text style={styles.total}>
-        Total: R$ {cart.reduce((sum, item) => sum + (parseFloat(item.valor_unitario) || 0), 0).toFixed(2)} {/* Exibir total com 2 casas decimais */}
-      </Text>
-
-      {isPaymentConfirmed && !isPaymentMinimized && (
-        <View style={styles.confirmedPaymentContainer}>
-          <Text style={styles.confirmedPaymentText}>
-            Forma de pagamento confirmada: {paymentMethod}
-          </Text>
-        </View>
-      )}
-
-      {!isPaymentConfirmed && !isPaymentMinimized && (
-        <>
-          <Text style={styles.paymentHeader}>Selecione a forma de pagamento:</Text>
-          <View style={styles.paymentOptions}>
-            {['PIX', 'DINHEIRO', 'CARTÃO CRÉDITO', 'CARTÃO DÉBITO'].map(renderPaymentOption)}
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scrollViewContent}>
+        {userData && (
+          <View style={styles.userInfo}>
+            <Text style={styles.infoLabel}>👤 Nome:</Text>
+            <Text style={styles.infoText}>{userData.name}</Text>
+            <Text style={styles.infoLabel}>📞 Telefone:</Text>
+            <Text style={styles.infoText}>{userData.phone}</Text>
+            <Text style={styles.infoLabel}>🏠 Endereço:</Text>
+            <Text style={styles.infoText}>{userData.address}</Text>
+            <Text style={styles.infoLabel}>🆔 CPF:</Text>
+            <Text style={styles.infoText}>{userData.cpf}</Text>
           </View>
-        </>
-      )}
+        )}
 
-      {isPaymentConfirmed && !isPaymentMinimized && (
-        <TouchableOpacity
-          style={styles.minimizeButton}
-          onPress={handleMinimizePayment} // Minimiza a seção de pagamento
-        >
-          <Text style={styles.minimizeButtonText}>Minimizar Opções de Pagamento</Text>
+        <Text style={styles.productHeader}>Resumo dos Produtos:</Text>
+        {cart.map((item, index) => (
+          <View key={index} style={styles.productItem}>
+            <Text style={styles.productText}>
+              {item.quantidade}x {item.descricao} - R$ {(item.valor_unitario * item.quantidade).toFixed(2)}
+            </Text>
+          </View>
+        ))}
+
+        <Text style={styles.total}>Total: R$ {total.toFixed(2)}</Text>
+        {discountApplied && (
+          <Text style={styles.total}>Com Desconto: R$ {totalWithDiscount}</Text>
+        )}
+
+        <View style={styles.discountContainer}>
+          <TextInput
+            style={styles.input}
+            placeholder="Código de desconto"
+            value={discountCode}
+            onChangeText={setDiscountCode}
+          />
+          <TouchableOpacity style={styles.applyButton} onPress={applyDiscount}>
+            <Text style={styles.buttonText}>Aplicar</Text>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity style={styles.paymentButton} onPress={() => setPaymentOptionsVisible(!paymentOptionsVisible)}>
+          <Text style={styles.paymentButtonText}>
+            {paymentMethod ? `Pagamento: ${paymentMethod}` : 'Selecione forma de pagamento'}
+          </Text>
         </TouchableOpacity>
-      )}
 
-      {isPaymentMinimized && (
+        {paymentOptionsVisible && (
+          <View style={styles.paymentOptions}>
+            {['PIX', 'DINHEIRO', 'CARTÃO CRÉDITO', 'CARTÃO DÉBITO'].map((method) => (
+              <TouchableOpacity key={method} onPress={() => {
+                setPaymentMethod(method);
+                setIsPaymentConfirmed(true);
+                setPaymentOptionsVisible(false);
+              }}>
+                <Text style={styles.paymentOption}>{method}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
         <TouchableOpacity
-          style={styles.reopenButton}
-          onPress={handleReopenPayment} // Restaura a visibilidade das opções de pagamento
+          style={[styles.button, !isPaymentConfirmed && styles.buttonDisabled]}
+          onPress={handleCheckout}
+          disabled={!isPaymentConfirmed}
         >
-          <Text style={styles.reopenButtonText}>Abrir Opções de Pagamento</Text>
+          <Text style={styles.buttonText}>Enviar Pedido via WhatsApp</Text>
         </TouchableOpacity>
-      )}
 
-      {isPaymentConfirmed && !isPaymentMinimized && (
-        <TouchableOpacity
-          style={styles.changePaymentButton}
-          onPress={handleChangePaymentMethod}
-        >
-          <Text style={styles.changePaymentButtonText}>Alterar Forma de Pagamento</Text>
+        <TouchableOpacity style={styles.buttonBack} onPress={() => navigation.goBack()}>
+          <Text style={styles.buttonText}>Voltar</Text>
         </TouchableOpacity>
-      )}
-
-      <TouchableOpacity
-        style={[styles.button, !isPaymentConfirmed && styles.buttonDisabled]}
-        onPress={handleCheckout}
-        disabled={!isPaymentConfirmed} // Desabilitar o botão se o pagamento não for confirmado
-      >
-        <Text style={styles.buttonText}>Enviar Pedido via WhatsApp</Text>
-      </TouchableOpacity>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-  },
-  container: {
-    flex: 1,
-    padding: 20,
-    backgroundColor: '#fff',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#B8860B',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  userInfo: {
-    marginBottom: 20,
-    backgroundColor: '#f5f5f5',
-    padding: 15,
-    borderRadius: 10,
-  },
-  infoLabel: {
-    fontWeight: 'bold',
-    fontSize: 16,
-    color: '#555',
-  },
-  infoText: {
-    fontSize: 16,
-    marginBottom: 10,
-    color: '#333',
-  },
-  productList: {
-    marginBottom: 20,
-  },
-  productHeader: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 10,
-  },
-  productItem: {
-    paddingVertical: 8,
-  },
-  productText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  total: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#B8860B',
-    marginBottom: 20,
-  },
-  paymentHeader: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 10,
-  },
-  paymentOptions: {
-    marginBottom: 20,
-  },
-  paymentButton: {
-    padding: 15,
-    backgroundColor: '#B8860B',
-    marginVertical: 5,
-    borderRadius: 5,
-  },
-  paymentButtonSelected: {
-    backgroundColor: '#8B4513', // Cor alterada para a opção selecionada
-  },
-  paymentButtonText: {
-    fontSize: 16,
-    color: '#fff',
-    textAlign: 'center',
-  },
-  minimizeButton: {
-    padding: 10,
-    backgroundColor: '#8B4513',
-    borderRadius: 5,
-    marginTop: 10,
-  },
-  minimizeButtonText: {
-    fontSize: 16,
-    color: '#fff',
-    textAlign: 'center',
-  },
-  reopenButton: {
-    padding: 10,
-    backgroundColor: '#8B4513',
-    borderRadius: 5,
-    marginTop: 10,
-  },
-  reopenButtonText: {
-    fontSize: 16,
-    color: '#fff',
-    textAlign: 'center',
-  },
-  changePaymentButton: {
-    padding: 10,
-    backgroundColor: '#B8860B',
-    borderRadius: 5,
-    marginTop: 10,
-  },
-  changePaymentButtonText: {
-    fontSize: 16,
-    color: '#fff',
-    textAlign: 'center',
-  },
-  confirmedPaymentContainer: {
-    backgroundColor: '#f0f0f0',
-    padding: 10,
-    borderRadius: 5,
-    marginTop: 10,
-  },
-  confirmedPaymentText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  button: {
-    padding: 15,
-    backgroundColor: '#B8860B',
-    marginTop: 20,
-    borderRadius: 5,
-  },
-  buttonDisabled: {
-    backgroundColor: '#d3d3d3',
-  },
-  buttonText: {
-    fontSize: 16,
-    color: '#fff',
-    textAlign: 'center',
-  },
-  warning: {
-    fontSize: 16,
-    color: 'red',
-    textAlign: 'center',
-  },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' },
+  container: { flex: 1, padding: 20, backgroundColor: '#fff' },
+  scrollViewContent: { flexGrow: 1, justifyContent: 'center' },
+  userInfo: { marginBottom: 20 },
+  infoLabel: { fontWeight: 'bold', marginVertical: 5 },
+  infoText: { marginBottom: 10 },
+  productHeader: { fontSize: 18, fontWeight: 'bold', marginBottom: 10 },
+  productItem: { marginBottom: 5 },
+  productText: { fontSize: 16 },
+  total: { fontSize: 16, marginVertical: 10 },
+  discountContainer: { flexDirection: 'row', marginBottom: 20 },
+  input: { borderWidth: 1, padding: 10, flex: 1 },
+  applyButton: { backgroundColor: '#B8860B', padding: 10, marginLeft: 10 },
+  paymentButton: { marginVertical: 10, padding: 10, backgroundColor: '#B8860B' },
+  paymentButtonText: { color: '#fff', textAlign: 'center' },
+  paymentOptions: { marginVertical: 10 },
+  paymentOption: { padding: 10, fontSize: 16 },
+  discountText: { color: 'green', fontSize: 16 },
+  button: { backgroundColor: '#B8860B', padding: 15, marginTop: 20 },
+  buttonDisabled: { backgroundColor: '#D3D3D3' },
+  buttonBack: { backgroundColor: '#B8860B', padding: 15, marginTop: 10, alignItems: 'center' },
+  buttonText: { color: '#fff', textAlign: 'center' },
 });
 
 export default CheckoutScreen;

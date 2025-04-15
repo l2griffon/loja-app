@@ -1,27 +1,41 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  Image,
-  StyleSheet,
-  Alert,
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  TouchableOpacity, 
+  Image, 
+  StyleSheet, 
+  Alert, 
+  KeyboardAvoidingView, 
+  Platform, 
+  ScrollView, 
+  TouchableWithoutFeedback, 
+  Keyboard 
 } from 'react-native';
 import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { firebase } from '../admin-panel/firebase';
 import { Ionicons } from '@expo/vector-icons';
 
+const ADMIN_EMAIL = "paulotocadoguerreiro.26@gmail.com"; // E-mail do admin
+
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false); // Para alternar a visibilidade da senha
 
   const handleLogin = async () => {
     const auth = getAuth(firebase);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      Alert.alert('Login realizado', 'Você se conectou com sucesso!');
-      navigation.replace('Home');
+      const res = await signInWithEmailAndPassword(auth, email, password);
+
+      // Verifica se o usuário logado tem o e-mail de admin
+      if (res.user.email === ADMIN_EMAIL) {
+        // Passa o parâmetro 'isAdmin' para a HomeScreen
+        navigation.replace('Home', { isAdmin: true }); // Redireciona para o painel de administração
+      } else {
+        navigation.replace('Home', { isAdmin: false }); // Redireciona para a Home do cliente
+      }
     } catch (error) {
       if (error.code === 'auth/user-not-found') {
         Alert.alert('Erro de login', 'Este email não está cadastrado.');
@@ -58,58 +72,71 @@ const LoginScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
-      <Image
-        source={require('../imagem/logo.png')}
-        style={styles.logo}
-        resizeMode="contain"
-      />
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView contentContainerStyle={styles.scrollView} keyboardShouldPersistTaps="handled">
+        <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
+          <View style={styles.inner}>
+            <Image
+              source={require('../imagem/logo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
 
-      <Text style={styles.title}>Seja Bem-vindo!</Text>
+            <Text style={styles.title}>Seja Bem-vindo!</Text>
 
-      <View style={styles.inputContainer}>
-        <Ionicons name="mail-outline" size={20} color="#888" style={styles.icon} />
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          placeholderTextColor="#aaa"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-      </View>
+            <View style={styles.inputContainer}>
+              <Ionicons name="mail-outline" size={20} color="#888" style={styles.icon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Email"
+                placeholderTextColor="#aaa"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
 
-      <View style={styles.inputContainer}>
-        <Ionicons name="lock-closed-outline" size={20} color="#888" style={styles.icon} />
-        <TextInput
-          style={styles.input}
-          placeholder="Senha"
-          placeholderTextColor="#aaa"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
-      </View>
+            <View style={styles.inputContainer}>
+              <Ionicons name="lock-closed-outline" size={20} color="#888" style={styles.icon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Senha"
+                placeholderTextColor="#aaa"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+              />
+              <TouchableOpacity
+                style={styles.eyeIcon}
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#888" />
+              </TouchableOpacity>
+            </View>
 
-      <TouchableOpacity onPress={handlePasswordReset}>
-        <Text style={styles.forgotText}>Esqueceu a senha?</Text>
-      </TouchableOpacity>
+            <TouchableOpacity onPress={handlePasswordReset}>
+              <Text style={styles.forgotText}>Esqueceu a senha?</Text>
+            </TouchableOpacity>
 
-      <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-        <Text style={styles.loginButtonText}>Entrar</Text>
-      </TouchableOpacity>
+            <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
+              <Text style={styles.loginButtonText}>Entrar</Text>
+            </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
-        <Text style={styles.signupText}>
-          Não tem uma conta? <Text style={styles.link}>Cadastre-se</Text>
-        </Text>
-      </TouchableOpacity>
-    </View>
+            <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
+              <Text style={styles.signupText}>
+                Não tem uma conta? <Text style={styles.link}>Cadastre-se</Text>
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableWithoutFeedback>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
-
-export default LoginScreen;
 
 const styles = StyleSheet.create({
   container: {
@@ -117,6 +144,14 @@ const styles = StyleSheet.create({
     padding: 24,
     justifyContent: 'center',
     backgroundColor: '#fff',
+  },
+  scrollView: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
+  inner: {
+    alignItems: 'center',
+    padding: 24,
   },
   logo: {
     width: 150,
@@ -166,6 +201,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
+  eyeIcon: {
+    position: 'absolute',
+    right: 12,
+    top: 12,
+  },
   forgotText: {
     alignSelf: 'flex-start',
     color: '#d4af37',
@@ -180,6 +220,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     marginBottom: 20,
+    width: '100%', // Ajuste para ocupar toda a largura disponível
     elevation: 3,
   },
   loginButtonText: {
@@ -197,3 +238,5 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
+
+export default LoginScreen;

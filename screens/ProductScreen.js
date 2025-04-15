@@ -1,141 +1,120 @@
-import React from 'react';
-import {
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  FlatList,
-  SafeAreaView,
-  Platform,
-  StatusBar,
-  Alert,
-} from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import Animated, { FadeInUp } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../firebaseConfig'; // Certifique-se de que esse caminho está correto
+import React, { useContext } from 'react';
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView } from 'react-native';
+import { CartContext } from '../context/CartContext';
 
-const categories = [
-  { name: 'Perfumes', type: 'perfumes', emoji: '🧴' },
-  { name: 'Cestas de Presente', type: 'cestas de presentes', emoji: '🎁' },
-  { name: 'Brinquedos', type: 'brinquedos', emoji: '🧸' },
-];
+const ProductScreen = ({ route, navigation }) => {
+  const { product } = route.params;
+  const { cart, addToCart, decreaseQuantity } = useContext(CartContext);
 
-const ProductScreen = () => {
-  const navigation = useNavigation();
-
-  const handleCategoryPress = async (type) => {
-    try {
-      const q = query(collection(db, 'products'), where('categoria', '==', type));
-      const querySnapshot = await getDocs(q);
-      const produtos = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-
-      navigation.navigate('CategoryProducts', {
-        category: type,
-        produtos,
-      });
-    } catch (error) {
-      console.error('Erro ao buscar produtos:', error);
-      Alert.alert('Erro', 'Não foi possível carregar os produtos.');
-    }
-  };
-
-  const renderCategory = ({ item, index }) => (
-    <Animated.View
-      entering={FadeInUp.delay(index * 150)}
-      style={styles.card}
-    >
-      <TouchableOpacity
-        style={styles.cardContent}
-        onPress={() => handleCategoryPress(item.type)}
-      >
-        <Text style={styles.emoji}>{item.emoji}</Text>
-        <Text style={styles.categoryText}>{item.name}</Text>
-        <Ionicons name="chevron-forward" size={24} color="#666" />
-      </TouchableOpacity>
-    </Animated.View>
-  );
+  const cartItem = cart.find(item => item.id === product.id);
+  const quantidadeNoCarrinho = cartItem?.quantidade || 0;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Escolha uma Categoria</Text>
+    <ScrollView contentContainerStyle={styles.container}>
+      <Image source={{ uri: product.image }} style={styles.image} />
 
-      <FlatList
-        data={categories}
-        renderItem={renderCategory}
-        keyExtractor={(item) => item.type}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        ListFooterComponent={() => (
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.navigate('Home')}
-          >
-            <Ionicons name="arrow-back" size={22} color="#B8860B" />
-            <Text style={styles.backText}>Voltar para Home</Text>
-          </TouchableOpacity>
-        )}
-      />
-    </SafeAreaView>
+      <Text style={styles.title}>{product.descricao}</Text>
+
+      {product.descricao && (
+        <Text style={styles.description}>{product.descricao}</Text>
+      )}
+
+      <Text style={styles.price}>R$ {parseFloat(product.valor_unitario).toFixed(2)}</Text>
+      <Text style={styles.stock}>Estoque: {product.quantidade ?? 'N/A'}</Text>
+
+      <Text style={styles.section}>Quantidade no carrinho:</Text>
+      <View style={styles.quantityContainer}>
+        <TouchableOpacity style={styles.quantityButton} onPress={() => decreaseQuantity(product.id)}>
+          <Text style={styles.quantityText}>−</Text>
+        </TouchableOpacity>
+        <Text style={styles.quantityNumber}>{quantidadeNoCarrinho}</Text>
+        <TouchableOpacity style={styles.quantityButton} onPress={() => addToCart(product)}>
+          <Text style={styles.quantityText}>＋</Text>
+        </TouchableOpacity>
+      </View>
+
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={() => navigation.goBack()}
+      >
+        <Text style={styles.backButtonText}>← Voltar</Text>
+      </TouchableOpacity>
+    </ScrollView>
   );
 };
 
-export default ProductScreen;
-
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    padding: 20,
+    alignItems: 'center',
     backgroundColor: '#fff',
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+  },
+  image: {
+    width: '100%',
+    height: 250,
+    borderRadius: 12,
+    marginBottom: 20,
   },
   title: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: 'bold',
-    marginBottom: 20,
+    marginBottom: 8,
+    color: '#333',
     textAlign: 'center',
+  },
+  description: {
+    fontSize: 15,
+    color: '#666',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  price: {
+    fontSize: 20,
+    color: '#B8860B',
+    marginBottom: 5,
+  },
+  stock: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 20,
+  },
+  section: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    alignSelf: 'flex-start',
+  },
+  quantityContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  quantityButton: {
+    backgroundColor: '#B8860B',
+    padding: 10,
+    borderRadius: 8,
+    marginHorizontal: 15,
+  },
+  quantityText: {
+    fontSize: 18,
+    color: '#fff',
+  },
+  quantityNumber: {
+    fontSize: 18,
+    fontWeight: 'bold',
     color: '#222',
   },
-  listContent: {
-    paddingBottom: 30,
-  },
-  card: {
-    backgroundColor: '#f0f0f0',
-    borderRadius: 16,
-    marginBottom: 16,
-    elevation: 3,
-  },
-  cardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 20,
-    justifyContent: 'space-between',
-  },
-  emoji: {
-    fontSize: 32,
-    marginRight: 12,
-  },
-  categoryText: {
-    flex: 1,
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#333',
-  },
   backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 20,
-    paddingVertical: 16,
+    marginTop: 10,
+    backgroundColor: '#B8860B',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 10,
   },
-  backText: {
+  backButtonText: {
+    color: '#fff',
     fontSize: 16,
-    marginLeft: 6,
-    color: '#B8860B',
-    fontWeight: '600',
-    textDecorationLine: 'underline',
   },
 });
+
+export default ProductScreen;

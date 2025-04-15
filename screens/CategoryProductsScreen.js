@@ -14,14 +14,14 @@ import { collection, getDocs } from 'firebase/firestore';
 
 const CategoryProductsScreen = ({ route, navigation }) => {
   const { category } = route.params;
-  const { cart, addToCart, removeFromCart } = useContext(CartContext);
+  const { cart, addToCart, decreaseQuantity } = useContext(CartContext);
   const [produtos, setProdutos] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchProdutos = async () => {
       try {
-        const produtosRef = collection(db, category); // Busca os produtos na coleção da categoria
+        const produtosRef = collection(db, category);
         const querySnapshot = await getDocs(produtosRef);
 
         if (!querySnapshot.empty) {
@@ -41,38 +41,44 @@ const CategoryProductsScreen = ({ route, navigation }) => {
     fetchProdutos();
   }, [category]);
 
+  const getQuantityInCart = (productId) => {
+    const item = cart.find(i => i.id === productId);
+    return item?.quantidade || 0;
+  };
+
   const renderProductItem = ({ item }) => {
-    const isInCart = cart.some(cartItem => cartItem.id === item.id);
+    const quantity = getQuantityInCart(item.id);
 
     return (
       <View style={styles.productItem}>
-        <Image
-          source={{ uri: item.image || 'https://via.placeholder.com/100' }}
-          style={styles.productImage}
-        />
+        <TouchableOpacity onPress={() => navigation.navigate('Product', { product: item })}>
+          <Image
+            source={{ uri: item.image || 'https://via.placeholder.com/100' }}
+            style={styles.productImage}
+          />
+        </TouchableOpacity>
+
         <View style={styles.productDetails}>
           <Text style={styles.productTitle}>{item.descricao}</Text>
-
           <Text style={styles.productPrice}>
             R$ {item.valor_unitario ? item.valor_unitario.toFixed(2) : '0.00'}
           </Text>
+          <Text style={styles.stockText}>Estoque: {item.quantidade ?? 'N/A'}</Text>
 
-          <View style={styles.productActions}>
-            {!isInCart ? (
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={() => addToCart(item)}
-              >
-                <Text style={styles.addButtonText}>Adicionar ao Carrinho</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={styles.removeButton}
-                onPress={() => removeFromCart(item.id)}
-              >
-                <Text style={styles.removeButtonText}>Remover</Text>
-              </TouchableOpacity>
-            )}
+          <View style={styles.quantityControls}>
+            <TouchableOpacity
+              onPress={() => decreaseQuantity(item.id)}
+              style={styles.controlButton}
+            >
+              <Text style={styles.controlButtonText}>−</Text>
+            </TouchableOpacity>
+            <Text style={styles.quantity}>{quantity}</Text>
+            <TouchableOpacity
+              onPress={() => addToCart(item)}
+              style={styles.controlButton}
+            >
+              <Text style={styles.controlButtonText}>＋</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -156,35 +162,32 @@ const styles = StyleSheet.create({
   productPrice: {
     fontSize: 16,
     color: '#B8860B',
-    marginVertical: 8,
+    marginVertical: 4,
   },
-  addButton: {
+  stockText: {
+    fontSize: 14,
+    color: '#555',
+    marginBottom: 6,
+  },
+  quantityControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 5,
+  },
+  controlButton: {
     backgroundColor: '#B8860B',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    padding: 6,
     borderRadius: 5,
-    width: 150,
-    justifyContent: 'center',
-    alignItems: 'center',
+    marginHorizontal: 10,
   },
-  addButtonText: {
+  controlButtonText: {
+    fontSize: 16,
     color: '#fff',
-    fontSize: 14,
-    textAlign: 'center',
   },
-  removeButton: {
-    backgroundColor: '#e53935',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 5,
-    width: 120,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  removeButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    textAlign: 'center',
+  quantity: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
   },
   backButtonText: {
     fontSize: 16,

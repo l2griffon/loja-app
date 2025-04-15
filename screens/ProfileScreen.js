@@ -1,32 +1,63 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, Dimensions, Platform, KeyboardAvoidingView } from 'react-native';
 import { getAuth } from 'firebase/auth';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { firebase } from '../admin-panel/firebase';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { useNavigation } from '@react-navigation/native';
+import AppLayout from '../components/AppLayout'; // Altere o caminho conforme necessário
 
-const ProfileScreen = ({ navigation }) => {
+// Obter a largura e altura da tela
+const { height, width } = Dimensions.get('window');
+
+// Avatar com inicial do nome
+const getInitial = (name) => {
+  return name ? name.charAt(0).toUpperCase() : '?';
+};
+
+const ProfileAvatar = ({ name, size = 80 }) => {
+  const initial = getInitial(name);
+  const colors = ['#FFD700', '#F4A460', '#FFA07A', '#C0C0C0'];
+  const bgColor = initial ? colors[initial.charCodeAt(0) % colors.length] : colors[0];
+
+  return (
+    <View style={[styles.avatar, {
+      backgroundColor: bgColor,
+      width: size,
+      height: size,
+      borderRadius: size / 2
+    }]}>
+      <Text style={[styles.avatarText, { fontSize: size / 2 }]}>{initial}</Text>
+    </View>
+  );
+};
+
+const ProfileScreen = () => {
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [clientCode, setClientCode] = useState('');
+  const navigation = useNavigation();
 
   useEffect(() => {
     const fetchUserData = async () => {
-      const auth = getAuth(firebase);
-      const user = auth.currentUser;
+      try {
+        const auth = getAuth(firebase);
+        const user = auth.currentUser;
 
-      if (user) {
-        const uid = user.uid;
-        const db = getFirestore(firebase);
-        const userRef = doc(db, 'users', uid);
-        const docSnap = await getDoc(userRef);
+        if (user) {
+          const db = getFirestore(firebase);
+          const userRef = doc(db, 'users', user.uid);
+          const userSnap = await getDoc(userRef);
 
-        if (docSnap.exists()) {
-          setUserData(docSnap.data());
-          setClientCode(uid.slice(-6));
+          if (userSnap.exists()) {
+            setUserData(userSnap.data());
+          } else {
+            console.log("Usuário não encontrado no Firestore");
+          }
+        } else {
+          console.log("Usuário não autenticado");
         }
+      } catch (error) {
+        console.error("Erro ao buscar dados do usuário:", error);
       }
-
       setLoading(false);
     };
 
@@ -35,160 +66,140 @@ const ProfileScreen = ({ navigation }) => {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#d4af37" />
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color="#B8860B" />
       </View>
     );
   }
-
-  if (!userData) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>Não foi possível carregar seus dados.</Text>
-      </View>
-    );
-  }
-
-  const getInitials = (name) => {
-    return name
-      .split(' ')
-      .map((word) => word.charAt(0).toUpperCase())
-      .join('')
-      .slice(0, 2);
-  };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Animated.View entering={FadeInDown.delay(200)} style={styles.avatarContainer}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{getInitials(userData.name)}</Text>
-        </View>
-        <Text style={styles.nameText}>{userData.name}</Text>
-        <TouchableOpacity
-          style={styles.editButton}
-          onPress={() => navigation.navigate('EditProfile')}
-        >
-          <Text style={styles.editButtonText}>Editar Perfil</Text>
-        </TouchableOpacity>
-      </Animated.View>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <AppLayout>
+        <ScrollView contentContainerStyle={{ width: '100%' }}>
+          <View style={{ alignItems: 'center', marginTop: 24 }}>
+            <ProfileAvatar name={userData?.name} />
+            <Text style={styles.name}>{userData?.name}</Text>
+          </View>
 
-      <Animated.View entering={FadeInDown.delay(300)} style={styles.infoBox}>
-        <Text style={styles.label}>Telefone</Text>
-        <Text style={styles.value}>{userData.phone}</Text>
-      </Animated.View>
+          <View style={styles.infoBox}>
+            <Text style={styles.label}>Telefone</Text>
+            <Text style={styles.value}>{userData?.phone || '-'}</Text>
 
-      <Animated.View entering={FadeInDown.delay(400)} style={styles.infoBox}>
-        <Text style={styles.label}>CPF</Text>
-        <Text style={styles.value}>{userData.cpf}</Text>
-      </Animated.View>
+            <Text style={styles.label}>CPF</Text>
+            <Text style={styles.value}>{userData?.cpf || '-'}</Text>
 
-      <Animated.View entering={FadeInDown.delay(500)} style={styles.infoBox}>
-        <Text style={styles.label}>Endereço</Text>
-        <Text style={styles.value}>{userData.address}</Text>
-      </Animated.View>
+            <Text style={styles.label}>Endereço</Text>
+            <Text style={styles.value}>{userData?.address || '-'}</Text>
+          </View>
 
-      <Animated.View entering={FadeInDown.delay(600)} style={styles.codeBox}>
-        <Text style={styles.codeLabel}>Código de Cliente</Text>
-        <Text style={styles.code}>{clientCode}</Text>
-      </Animated.View>
-    </ScrollView>
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={() => navigation.navigate('EditProfile')}
+          >
+            <Text style={styles.editButtonText}>Editar Perfil</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.historyButton}
+            onPress={() => navigation.navigate('OrderHistory')}
+          >
+            <Text style={styles.historyButtonText}>📜 Ver Meus Pedidos</Text>
+          </TouchableOpacity>
+
+          {/* Botão Voltar */}
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()} // Voltar à tela anterior
+          >
+            <Text style={styles.backButtonText}>← Voltar</Text>
+          </TouchableOpacity>
+
+        </ScrollView>
+      </AppLayout>
+    </KeyboardAvoidingView>
   );
 };
-
-export default ProfileScreen;
 
 const styles = StyleSheet.create({
   container: {
     padding: 24,
-    backgroundColor: '#fefdf9',
-    flexGrow: 1,
+    backgroundColor: '#fff',
   },
-  loadingContainer: {
+  centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
   },
-  avatarContainer: {
+  backButton: {
+    backgroundColor: '#B8860B',
+    padding: 14,
+    borderRadius: 10,
     alignItems: 'center',
-    marginBottom: 30,
+    width: '80%',
+    marginTop: 30,
+    alignSelf: 'center', // Centraliza o botão
+  },
+  backButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
   avatar: {
-    backgroundColor: '#d4af37',
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    justifyContent: 'center',
     alignItems: 'center',
-    elevation: 5,
+    justifyContent: 'center',
+    marginBottom: 16,
   },
   avatarText: {
-    fontSize: 36,
-    fontWeight: 'bold',
     color: '#fff',
-  },
-  nameText: {
-    fontSize: 22,
     fontWeight: 'bold',
+  },
+  name: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 20,
     color: '#222',
-    marginTop: 12,
-  },
-  editButton: {
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: '#d4af37',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-  },
-  editButtonText: {
-    color: '#d4af37',
-    fontWeight: 'bold',
   },
   infoBox: {
-    marginBottom: 16,
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    marginTop: 10,
+    backgroundColor: '#f9f9f9',
     padding: 16,
+    borderRadius: 12,
     elevation: 2,
-    borderLeftWidth: 5,
-    borderLeftColor: '#d4af37',
   },
   label: {
     fontSize: 14,
     color: '#666',
-    marginBottom: 4,
+    marginTop: 12,
   },
   value: {
     fontSize: 16,
+    color: '#000',
     fontWeight: '500',
-    color: '#333',
   },
-  codeBox: {
-    marginTop: 30,
-    padding: 20,
-    backgroundColor: '#fff8e1',
-    borderColor: '#d4af37',
-    borderWidth: 1,
-    borderRadius: 12,
+  editButton: {
+    backgroundColor: '#FFD700',
+    padding: 14,
+    borderRadius: 10,
     alignItems: 'center',
-    elevation: 3,
+    marginTop: 30,
   },
-  codeLabel: {
+  editButtonText: {
+    color: '#000',
     fontSize: 16,
-    fontWeight: '600',
-    color: '#555',
-  },
-  code: {
-    fontSize: 24,
     fontWeight: 'bold',
-    color: '#d4af37',
-    marginTop: 8,
   },
-  errorText: {
-    fontSize: 16,
-    color: 'red',
-    textAlign: 'center',
-    marginTop: 20,
+  historyButton: {
+    backgroundColor: '#f0f0f0',
+    padding: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 15,
+  },
+  historyButtonText: {
+    color: '#333',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
+
+export default ProfileScreen;
