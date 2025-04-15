@@ -14,7 +14,7 @@ import {
   Keyboard 
 } from 'react-native';
 import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
-import { firebase } from '../admin-panel/firebase';
+import { firebase } from '../firebase';
 import { Ionicons } from '@expo/vector-icons';
 
 const ADMIN_EMAIL = "paulotocadoguerreiro.26@gmail.com"; // E-mail do admin

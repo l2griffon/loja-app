@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
-import { firebase } from '../admin-panel/firebase'; // Certifique-se de importar o Firebase corretamente
+import { firebase } from '../firebase'; // Certifique-se de importar o Firebase corretamente
 
 const OrdersByStatusScreen = ({ route }) => {
   const { status } = route.params; // Obtém o status passado pela navegação

@@ -9,7 +9,7 @@ import {
   Image,
 } from 'react-native';
 import { CartContext } from '../context/CartContext';
-import { db } from '../firebaseConfig';
+import { db } from '../firebase';
 import { collection, getDocs } from 'firebase/firestore';
 
 const CategoryProductsScreen = ({ route, navigation }) => {

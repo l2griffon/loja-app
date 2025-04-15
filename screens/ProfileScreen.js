@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, Dimensions, Platform, KeyboardAvoidingView } from 'react-native';
 import { getAuth } from 'firebase/auth';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
-import { firebase } from '../admin-panel/firebase';
+import { firebase } from '../firebase';
 import { useNavigation } from '@react-navigation/native';
 import AppLayout from '../components/AppLayout'; // Altere o caminho conforme necessário
 

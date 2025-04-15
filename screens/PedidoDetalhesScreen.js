@@ -5,7 +5,7 @@ import {
 import {
   getFirestore, doc, updateDoc, getDocs, collection, query, where
 } from 'firebase/firestore';
-import { firebase } from '../admin-panel/firebase';
+import { firebase } from '../firebase';
 
 const PedidoDetalhesScreen = ({ route, navigation }) => {
   const { order } = route.params;

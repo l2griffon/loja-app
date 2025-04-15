@@ -1,22 +1,20 @@
-import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';  // Importando a função de login
-import { collection, doc, getDoc } from 'firebase/firestore';  // Importando as funções necessárias do Firestore
-import { auth, db } from '../firebaseConfig';  // Importando do firebaseConfig.js
+// firebase.js
+import { initializeApp } from 'firebase/app';
+import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { firebaseConfig } from './firebaseConfig'; // mesmo diretório
 
-// Função de login
-export const login = async (email, password) => {
-  try {
-    await signInWithEmailAndPassword(auth, email, password);
-  } catch (error) {
-    console.error("Error signing in: ", error);
-  }
-};
+// Inicializa o app Firebase
+const app = initializeApp(firebaseConfig);
 
-// Função para obter dados do Firestore
-export const getUserData = async (userId) => {
-  try {
-    const userDoc = await getDoc(doc(db, 'users', userId)); // Usando a nova API do Firestore
-    return userDoc.data();
-  } catch (error) {
-    console.error("Error fetching user data: ", error);
-  }
-};
+// Inicializa o Firebase Auth com persistência local
+const auth = initializeAuth(app, {
+  persistence: getReactNativePersistence(AsyncStorage),
+});
+
+// Inicializa o Firestore
+const db = getFirestore(app);
+
+// Exporta para uso no app
+export { auth, db };

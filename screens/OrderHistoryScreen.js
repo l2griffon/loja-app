@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { getAuth } from 'firebase/auth';
 import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
-import { firebase } from '../admin-panel/firebase';
+import { firebase } from '../firebase';
 import { Picker } from '@react-native-picker/picker';
 import { FontAwesome5, MaterialIcons, Entypo } from '@expo/vector-icons';
 

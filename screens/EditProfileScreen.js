@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { getAuth } from 'firebase/auth';
 import { getFirestore, doc, getDoc, updateDoc } from 'firebase/firestore';
-import { firebase } from '../admin-panel/firebase';
+import { firebase } from '../firebase';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 
 // Obter altura da tela

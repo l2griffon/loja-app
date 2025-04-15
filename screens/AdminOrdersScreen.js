@@ -6,7 +6,7 @@ import {
 import {
   getFirestore, collection, getDocs, orderBy, query
 } from 'firebase/firestore';
-import { firebase } from '../admin-panel/firebase';
+import { firebase } from '../firebase';
 import { Ionicons } from '@expo/vector-icons';
 import * as Animatable from 'react-native-animatable';
 

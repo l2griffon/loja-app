@@ -5,7 +5,7 @@ import {
 import {
   getFirestore, collection, query, where, getDocs, orderBy
 } from 'firebase/firestore';
-import { firebase } from '../admin-panel/firebase';
+import { firebase } from '../firebase';
 
 const OrdersByStatus = ({ route, navigation }) => {
   const { status } = route.params;

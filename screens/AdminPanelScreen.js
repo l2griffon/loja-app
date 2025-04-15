@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView
 } from 'react-native';
 import { getFirestore, collection, getDocs } from 'firebase/firestore';
-import { firebase } from '../admin-panel/firebase';
+import { firebase } from '../firebase';
 
 const AdminPanelScreen = ({ navigation }) => {
   const [ordersCount, setOrdersCount] = useState(0);
